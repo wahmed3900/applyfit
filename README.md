@@ -21,44 +21,54 @@ def test_summarize():
 
 
 
+                                                      # ApplyFit
 
-ApplyFit is a command-line tool that helps job seekers stop guessing what recruiters and applicant tracking systems are looking for.
+**Tailor your resume to any job description — instantly, and honestly.**
 
-Upload your resume (PDF or DOCX) and a job description. ApplyFit compares them using a mix of semantic embeddings and keyword overlap, then gives you:
+ApplyFit analyzes a job posting and your resume, then shows you exactly where you match, where you're missing keywords, and how to rephrase your experience to fit the role — without inventing anything.
 
-A 0–100 match score so you know where you stand before you apply
+> Built for job seekers who are tired of guessing what recruiters' filters want.
 
-A ranked gap analysis of missing skills and keywords, sorted by how often the job asks for them
+---
 
-Section-by-section feedback on your summary, experience, skills, and education
+## Why ApplyFit?
 
-Rewritten bullet points that mirror the job's language — drawn strictly from your original resume, never fabricated
+Most "resume optimizers" either:
+- Stuff keywords until your resume reads like spam, or
+- Rewrite your experience into fiction.
 
-Unlike most resume optimizers, ApplyFit won't turn your experience into fiction or stuff your resume with buzzwords. It maps what you've actually done to what the job actually asks for, and shows you the gaps honestly.
+ApplyFit does neither. It maps **what you've actually done** to **what the job actually asks for**, and tells you where the gaps are.
 
-Run it with OpenAI, or go fully offline with a local model — no API key required, no data leaves your machine.
-Tagline Options
-Tailor your resume. Keep your integrity.
+---
 
-                                        Know your fit before you apply.
+## Features
 
-Honest resume matching, powered by LLMs.
+- 🎯 **Match Score** — A 0–100 fit score between your resume and the job description
+- 🔑 **Keyword Gap Analysis** — Missing skills and terms, ranked by importance
+- ✍️ **Bullet Rewriter** — Rephrases your existing bullets using the job's language (no fabrication)
+- 📊 **Section Breakdown** — Feedback per resume section: summary, experience, skills, education
+- 📄 **PDF & DOCX Support** — Upload your resume in either format
+- 🔒 **Local-First Option** — Run fully offline with a local LLM
 
-Stop guessing what the ATS wants.
+---
 
-Feature Blurbs (for a features section)
-🎯 Match Score
-A single 0–100 number that tells you how well your resume aligns with the job — before you spend an hour on a cover letter.
+## Demo
 
-🔑 Keyword Gap Analysis
-See exactly which skills and terms the job mentions that your resume doesn't, ranked by importance.
+```bash
+$ applyfit analyze --resume resume.pdf --job job_posting.txt
 
-✍️ Honest Bullet Rewriter
-Your existing bullets, rephrased in the job's language. Nothing invented, nothing exaggerated.
+Match Score: 74/100
 
-📄 PDF & DOCX Support
-Upload your resume in whichever format you already have.
+✅ Strong matches:
+   - Python, SQL, data pipelines
+   - Cross-functional collaboration
 
-🔒 Local-First Option
-Run entirely offline with a local LLM. Your resume never leaves your machine.
+⚠️  Missing keywords:
+   - "dbt" (mentioned 4x in JD)
+   - "stakeholder management"
+   - "A/B testing"
 
+✍️  Suggested rewrite:
+   Before: "Worked with marketing team on reports"
+   After:  "Partnered with marketing stakeholders to deliver
+            A/B tested reporting pipelines in SQL"
