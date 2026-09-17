@@ -1,3 +1,26 @@
+Disclaimer
+ApplyFit does not fabricate experience. It only rephrases what you've already written. You are responsible for the accuracy of your final resume.
+
+text
+
+---
+
+## 3. Blog Post — Testing LLM Outputs
+
+# Testing LLM Outputs: Why `assert output == expected` Doesn't Work
+
+When I wrote my first test for an LLM-powered feature, I did what any sensible engineer would do:
+
+```python
+def test_summarize():
+    result = summarize("The quick brown fox...")
+    assert result == "A fox jumps over a dog."
+
+
+
+
+
+
 
 ApplyFit is a command-line tool that helps job seekers stop guessing what recruiters and applicant tracking systems are looking for.
 
