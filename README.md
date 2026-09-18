@@ -1,58 +1,72 @@
-# ApplyFit
+# ApplyFit — Job Application Autopilot (MVP backend)
 
-**Tailor your resume to any job description — instantly, and honestly.**
+Paste a job description + your resume → get a match score, missing
+keywords, tailored resume bullets, and a cover letter.
 
-ApplyFit analyzes a job posting and your resume, then shows you exactly where you match, where you're missing keywords, and how to rephrase your experience to fit the role — without inventing anything.
-
-> Built for job seekers who are tired of guessing what recruiters' filters want.
-
----
-
-## Why ApplyFit?
-
-Most "resume optimizers" either:
-- Stuff keywords until your resume reads like spam, or
-- Rewrite your experience into fiction.
-
-ApplyFit does neither. It maps **what you've actually done** to **what the job actually asks for**, and tells you where the gaps are.
-
----
-
-## Features
-
-- 🎯 **Match Score** — A 0–100 fit score between your resume and the job description
-- 🔑 **Keyword Gap Analysis** — Missing skills and terms, ranked by importance
-- ✍️ **Bullet Rewriter** — Rephrases your existing bullets using the job's language (no fabrication)
-- 📊 **Section Breakdown** — Feedback per resume section: summary, experience, skills, education
-- 📄 **PDF & DOCX Support** — Upload your resume in either format
-- 🔒 **Local-First Option** — Run fully offline with a local LLM
-
----
-
-## Demo
+## Setup
 
 ```bash
-$ applyfit analyze --resume resume.pdf --job job_posting.txt
-
-Match Score: 74/100
-
-✅ Strong matches:
-   - Python, SQL, data pipelines
-   - Cross-functional collaboration
-
-⚠️  Missing keywords:
-   - "dbt" (mentioned 4x in JD)
-   - "stakeholder management"
-   - "A/B testing"
-
-✍️  Suggested rewrite:
-   Before: "Worked with marketing team on reports"
-   After:  "Partnered with marketing stakeholders to deliver
-            A/B tested reporting pipelines in SQL"
+pip install -r requirements.txt --break-system-packages
+export ANTHROPIC_API_KEY=sk-ant-...
+uvicorn main:app --reload --port 8000
 ```
 
----
+## Endpoints
 
-## Disclaimer
+### `POST /analyze`
+Scores the resume against the job description.
 
-ApplyFit does not fabricate experience. It only rephrases what you've already written. You are responsible for the accuracy of your final resume.
+Request:
+```json
+{
+  "job_description": "We're looking for a Python developer with FastAPI...",
+  "resume_text": "5 years experience building REST APIs in Python..."
+}
+```
+
+Response:
+```json
+{
+  "match_score": 78,
+  "matched_keywords": ["Python", "REST APIs"],
+  "missing_keywords": ["FastAPI", "Docker"],
+  "summary": "Strong overall fit but the resume doesn't mention FastAPI or Docker directly."
+}
+```
+
+### `POST /generate`
+Generates tailored resume bullets + a cover letter.
+
+Request:
+```json
+{
+  "job_description": "...",
+  "resume_text": "...",
+  "company_name": "Acme Corp",
+  "tone": "professional"
+}
+```
+
+Response:
+```json
+{
+  "tailored_bullets": ["...", "..."],
+  "cover_letter": "Dear Hiring Manager, ..."
+}
+```
+
+### `GET /health`
+Simple liveness check.
+
+## Notes on truthfulness
+The `/generate` prompt explicitly instructs the model to only rephrase
+and reprioritize existing resume content — never invent skills or
+experience. Worth spot-checking outputs before relying on it, since
+LLMs can still drift.
+
+## Next steps
+- Add a simple frontend (paste boxes + results view).
+- Add docx/PDF export of the tailored resume and cover letter.
+- Add job-post URL scraping (currently expects pasted text).
+- Add auth + saved history if you want a persistent product instead of a stateless tool.
+- Deploy to Railway (same flow as your other projects) — set `ANTHROPIC_API_KEY` as an environment variable there.
