@@ -287,7 +287,16 @@ def create_checkout_session(req: CheckoutRequest):
     try:
         session = stripe.checkout.Session.create(
             mode="subscription",
+            ui_mode="hosted",  # SDK < 21.0.0 uses "hosted"; switch to "hosted_page" if you upgrade past 21.0.0
             payment_method_types=["card"],
+            billing_address_collection="auto",
+            phone_number_collection={"enabled": False},
+            automatic_tax={"enabled": False},
+            allow_promotion_codes=False,
+            payment_method_collection="always",  # included because mode is "subscription"
+            submit_type="auto",
+            integration_identifier="hosted_mobile_app_0002",
+            origin_context="mobile_app",
             line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
             customer_email=req.email,
             success_url=req.success_url,
