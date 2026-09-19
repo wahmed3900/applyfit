@@ -122,7 +122,7 @@ if MONGODB_URI:
 # MODEL CONFIG
 # ============================================================
 CLAUDE_MODEL = "claude-sonnet-4-6"
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.6-flash"
 GROQ_MODEL   = "llama-3.3-70b-versatile"
 
 # ============================================================
