@@ -63,6 +63,15 @@ STRIPE_PRICE_ID       = os.getenv("STRIPE_PRICE_ID")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 MONGODB_URI           = os.getenv("MONGODB_URI")
 
+# Comma-separated list of allowed frontend origins, e.g.:
+#   ALLOWED_ORIGINS=https://applyfit-frontend.vercel.app,http://localhost:3000
+# Falls back to the known production + local dev origins if unset, so the
+# app is never accidentally wide-open ("*") once this file is deployed.
+_default_origins = "https://applyfit-frontend.vercel.app,http://localhost:3000,http://127.0.0.1:5500"
+ALLOWED_ORIGINS = [
+    o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()
+]
+
 # Need at least one LLM provider or the app can't do anything useful.
 if not (ANTHROPIC_API_KEY or GEMINI_API_KEY or GROQ_API_KEY):
     raise RuntimeError(
@@ -84,6 +93,7 @@ if not STRIPE_WEBHOOK_SECRET:
     log.warning("STRIPE_WEBHOOK_SECRET missing — webhook signature check will fail")
 if not MONGODB_URI:
     log.warning("MONGODB_URI missing — subscription checks are bypassed (dev mode)")
+log.info(f"CORS allowed origins: {ALLOWED_ORIGINS}")
 
 # ============================================================
 # CLIENTS
@@ -118,11 +128,11 @@ GROQ_MODEL   = "llama-3.3-70b-versatile"
 # ============================================================
 # APP + CORS
 # ============================================================
-app = FastAPI(title="ApplyFit", version="0.3.0")
+app = FastAPI(title="ApplyFit", version="0.4.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten to your Vercel domain in production
+    allow_origins=ALLOWED_ORIGINS,   # locked to known frontends — see ALLOWED_ORIGINS above
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -149,6 +159,8 @@ async def log_requests(request: Request, call_next):
 # GLOBAL EXCEPTION HANDLER — JSON body + explicit CORS headers,
 # so a server-side crash never looks like a CORS block in the browser.
 # ============================================================
+_cors_origin_header = ALLOWED_ORIGINS[0] if len(ALLOWED_ORIGINS) == 1 else "*"
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     tb = traceback.format_exc()
@@ -157,7 +169,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": str(exc), "type": type(exc).__name__},
         headers={
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": _cors_origin_header,
             "Access-Control-Allow-Methods": "*",
             "Access-Control-Allow-Headers": "*",
         },
@@ -340,6 +352,7 @@ def health():
         },
         "db": db is not None,
         "stripe": bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID),
+        "cors_allowed_origins": ALLOWED_ORIGINS,
     }
 
 
@@ -394,6 +407,16 @@ def debug_models():
         out["groq"] = "not configured"
 
     return out
+
+
+@app.get("/subscription-status")
+def subscription_status(email: str):
+    """Lightweight check the frontend can call as soon as an email is entered,
+    so Generate can be visually unlocked/locked BEFORE the user clicks it —
+    instead of only finding out via a 402 after submitting the whole form."""
+    if not email.strip():
+        raise HTTPException(400, "email is required")
+    return {"active": has_active_subscription(email), "dev_mode": db is None}
 
 
 @app.post("/extract-job-url")
