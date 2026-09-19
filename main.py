@@ -2,10 +2,10 @@
 ApplyFit — FastAPI backend with multi-provider LLM fallback.
 
 LLM chain: Anthropic Claude -> Google Gemini -> Groq
-If one provider fails (bad key, quota, timeout, outage), the next is tried.
-You only need to set the API key(s) for the provider(s) you want in the
-chain — missing keys are skipped, not treated as errors, as long as at
-least one provider is configured.
+If one provider fails (bad key, quota, timeout, outage), the next is
+tried automatically. You only need to set the API key(s) for the
+provider(s) you actually want in the chain — missing keys are skipped,
+not treated as errors, as long as at least one provider is configured.
 
 Required:  at least ONE of ANTHROPIC_API_KEY / GEMINI_API_KEY / GROQ_API_KEY
 Optional:  STRIPE_SECRET_KEY, STRIPE_PRICE_ID, STRIPE_WEBHOOK_SECRET, MONGODB_URI
@@ -51,7 +51,7 @@ logging.basicConfig(
 log = logging.getLogger("applyfit")
 
 # ============================================================
-# CONFIG — every secret comes from the environment
+# CONFIG — every secret comes from the environment, never from this file
 # ============================================================
 load_dotenv()
 
@@ -111,8 +111,8 @@ if MONGODB_URI:
 # ============================================================
 # MODEL CONFIG
 # ============================================================
-CLAUDE_MODEL = "claude-3-5-sonnet-20241022"
-GEMINI_MODEL = "gemini-flash-latest"
+CLAUDE_MODEL = "claude-sonnet-4-6"
+GEMINI_MODEL = "gemini-2.5-flash"
 GROQ_MODEL   = "llama-3.3-70b-versatile"
 
 # ============================================================
@@ -128,7 +128,7 @@ app.add_middleware(
 )
 
 # ============================================================
-# REQUEST LOGGING MIDDLEWARE
+# REQUEST LOGGING MIDDLEWARE — makes Render's log viewer actually useful
 # ============================================================
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -146,7 +146,8 @@ async def log_requests(request: Request, call_next):
         raise
 
 # ============================================================
-# GLOBAL EXCEPTION HANDLER
+# GLOBAL EXCEPTION HANDLER — JSON body + explicit CORS headers,
+# so a server-side crash never looks like a CORS block in the browser.
 # ============================================================
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
@@ -163,7 +164,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     )
 
 # ============================================================
-# REQUEST MODELS
+# REQUEST MODELS  (shapes match the frontend exactly)
 # ============================================================
 class ExtractURLRequest(BaseModel):
     job_url: str
@@ -185,7 +186,7 @@ class CheckoutRequest(BaseModel):
     cancel_url: str
 
 # ============================================================
-# JSON PARSING HELPER
+# JSON PARSING HELPER (tolerates markdown fences and extra prose)
 # ============================================================
 def _parse_json(raw: str) -> dict:
     raw = raw.strip()
@@ -220,7 +221,7 @@ def _claude_json(system: str, user: str, max_tokens: int) -> dict:
     return _parse_json(resp.content[0].text)
 
 # ============================================================
-# PROVIDER 2 — GOOGLE GEMINI
+# PROVIDER 2 — GOOGLE GEMINI (plain HTTP, no extra SDK needed)
 # ============================================================
 def _gemini_json(system: str, user: str, max_tokens: int) -> dict:
     if not GEMINI_API_KEY:
@@ -249,7 +250,7 @@ def _gemini_json(system: str, user: str, max_tokens: int) -> dict:
     return _parse_json(text)
 
 # ============================================================
-# PROVIDER 3 — GROQ
+# PROVIDER 3 — GROQ (OpenAI-compatible, plain HTTP)
 # ============================================================
 def _groq_json(system: str, user: str, max_tokens: int) -> dict:
     if not GROQ_API_KEY:
@@ -280,7 +281,7 @@ def _groq_json(system: str, user: str, max_tokens: int) -> dict:
     return _parse_json(text)
 
 # ============================================================
-# FALLBACK DISPATCHER
+# FALLBACK DISPATCHER — try each configured provider in order
 # ============================================================
 def llm_json(system: str, user: str, max_tokens: int = 2000) -> Tuple[dict, str]:
     """Try Claude -> Gemini -> Groq. Returns (parsed_json, provider_name_used)."""
@@ -315,7 +316,7 @@ def llm_json(system: str, user: str, max_tokens: int = 2000) -> Tuple[dict, str]
 # ============================================================
 def has_active_subscription(email: str) -> bool:
     if db is None:
-        return True
+        return True  # dev mode: no DB configured -> allow
     try:
         return db.subscriptions.find_one(
             {"email": email.lower(), "status": "active"}
@@ -329,6 +330,7 @@ def has_active_subscription(email: str) -> bool:
 # ============================================================
 @app.get("/health")
 def health():
+    """Shows exactly which providers/services are configured — check this first when debugging."""
     return {
         "ok": True,
         "providers": {
@@ -348,6 +350,7 @@ def root():
 
 @app.get("/debug/models")
 def debug_models():
+    """Query each configured provider for its available models."""
     out = {}
 
     if anthropic_client is not None:
@@ -395,6 +398,7 @@ def debug_models():
 
 @app.post("/extract-job-url")
 def extract_job_url(req: ExtractURLRequest):
+    """Frontend 'Fetch' button. Returns { job_description, provider }."""
     if not req.job_url.strip():
         raise HTTPException(400, "job_url is required")
 
@@ -443,6 +447,7 @@ def extract_job_url(req: ExtractURLRequest):
 
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
+    """Frontend 'Analyze Match'. Returns match_score, summary, matched_keywords, missing_keywords."""
     if not req.job_description.strip() or not req.resume_text.strip():
         raise HTTPException(400, "job_description and resume_text are required")
 
@@ -473,6 +478,10 @@ def analyze(req: AnalyzeRequest):
 
 @app.post("/generate")
 def generate(req: GenerateRequest):
+    """Frontend 'Generate' button (Pro). Returns tailored_bullets + cover_letter.
+
+    Gated behind an active subscription — the free tier is /analyze only.
+    """
     if not req.job_description.strip() or not req.resume_text.strip():
         raise HTTPException(400, "job_description and resume_text are required")
     if not req.email.strip():
@@ -522,6 +531,7 @@ def generate(req: GenerateRequest):
 
 @app.post("/create-checkout-session")
 def create_checkout_session(req: CheckoutRequest):
+    """Frontend 'Subscribe' button. Returns { checkout_url }."""
     if not STRIPE_SECRET_KEY or not STRIPE_PRICE_ID:
         raise HTTPException(500, "Stripe is not configured on the server.")
     if not req.email.strip():
@@ -542,6 +552,10 @@ def create_checkout_session(req: CheckoutRequest):
     return {"checkout_url": session.url, "id": session.id}
 
 
+# NOTE: this path must exactly match the endpoint URL configured in
+# Stripe Dashboard -> Developers -> Webhooks. If Stripe is still pointed
+# at "/webhook", either update Stripe's config to "/stripe-webhook",
+# or rename this route back to "/webhook" — pick one and make both sides match.
 @app.post("/stripe-webhook")
 async def stripe_webhook(request: Request):
     payload = await request.body()
